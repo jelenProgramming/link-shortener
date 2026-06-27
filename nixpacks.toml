@@ -4,5 +4,8 @@ providers = ["php"]
 [phases.install]
 cmds = ["composer install --no-dev --optimize-autoloader"]
 
+[phases.setup]
+cmds = ["mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data storage/logs bootstrap/cache && chmod -R 775 storage bootstrap/cache"]
+
 [start]
 cmd = "bash start.sh"
