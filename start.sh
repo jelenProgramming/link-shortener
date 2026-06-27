@@ -1,0 +1,3 @@
+#!/bin/bash
+php artisan migrate --force
+frankenphp run --config /Caddyfile

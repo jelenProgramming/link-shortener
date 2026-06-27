@@ -5,4 +5,4 @@ providers = ["php"]
 cmds = ["composer install --no-dev --optimize-autoloader"]
 
 [start]
-cmd = "php artisan config:cache && php artisan route:cache && php artisan migrate --force --no-interaction; php -S 0.0.0.0:$PORT -t public"
+cmd = "bash start.sh"
