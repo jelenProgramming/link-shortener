@@ -11,8 +11,11 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 COPY . .
 
+# .env.example holds local defaults. A production image must not ship
+# APP_DEBUG=true, which hands stack traces to anyone who triggers an error.
 RUN composer install --no-dev --optimize-autoloader --no-interaction \
     && cp -n .env.example .env \
+    && sed -i 's/^APP_ENV=.*/APP_ENV=production/; s/^APP_DEBUG=.*/APP_DEBUG=false/' .env \
     && touch database/database.sqlite \
     && mkdir -p storage/framework/views storage/framework/cache/data storage/framework/sessions bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache \
