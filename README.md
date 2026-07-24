@@ -1,30 +1,66 @@
-# Linkshort — API
+# Linkshort API
 
-A URL shortener with click analytics. Laravel REST API: create short links,
-redirect visitors, and record every click (referrer, time) for per-link stats.
+Laravel backend for a URL shortener. Create a short slug for any URL, hand
+it out, and every hit gets logged (referrer, user agent, rough location)
+so the dashboard can show where clicks are coming from.
 
-The React dashboard that consumes this API lives in a separate repo (`linkshort-web`).
+Companion frontend: `linkshort-web` (React + Vite), separate repo.
 
-## What it shows
+## Click data doesn't stay forever, and it isn't stored precisely
 
-- REST API design with resource routes
-- Eloquent models and a one-to-many relation (`Link` → `Click`)
-- Request validation (valid URL, unique custom slug)
-- Aggregation queries (clicks per day, top referrers) for analytics
-- A redirect endpoint that logs each visit, then 302s to the target
-- CORS configured for a separate frontend origin
+Analytics tools default to hoarding raw visitor IPs indefinitely - that's
+more liability than most side projects need. This one truncates the IP
+before it's written (last octet zeroed for IPv4, trailing groups zeroed for
+IPv6), so a click record is good enough for coarse geo/analytics but isn't
+a precise fingerprint. A daily scheduled command (`clicks:prune`, wired up
+in `routes/console.php`) then deletes click rows older than 90 days. Retention
+is a command-line flag (`--days=`), not a magic number buried in a query.
+
+Link management (listing links, deleting them) requires a Sanctum token,
+and is scoped to the token holder - `GET /api/links` only ever returns
+links owned by the authenticated user, and deleting someone else's link
+gets a 403. Creating a link and viewing its stats stay open, since that's
+the actual product - anyone with a URL can shorten it, same as bit.ly or
+tinyurl; a link created while logged out has no owner and won't show up
+in anyone's list. The redirect itself (`GET /{slug}`) was always public
+and still is; that's the one endpoint the whole app exists to serve.
+
+## Auth
+
+Bearer tokens via Laravel Sanctum, not sessions - `POST /api/register` or
+`POST /api/login` returns a `token`, send it back as
+`Authorization: Bearer <token>`.
 
 ## Endpoints
 
-| Method | Path                | Purpose                                  |
-|--------|---------------------|------------------------------------------|
-| GET    | `/api/links`        | List all links with click counts         |
-| POST   | `/api/links`        | Create a link `{ url, slug? }`           |
-| GET    | `/api/links/{slug}` | Link details + stats (daily, referrers)  |
-| DELETE | `/api/links/{slug}` | Delete a link and its clicks             |
-| GET    | `/{slug}`           | Redirect to the original URL (logs click)|
+Public:
 
-## Run locally
+```
+POST   /api/links            create a link       { url, slug? }
+GET    /api/links/{slug}     link + click stats
+GET    /{slug}                the actual redirect (302, logs a click)
+POST   /api/register          { name, email, password }
+POST   /api/login             { email, password }
+```
+
+Requires a bearer token:
+
+```
+GET    /api/links             the caller's own links, with click counts
+DELETE /api/links/{slug}      remove a link you own (403 if you don't)
+POST   /api/logout
+GET    /api/me
+```
+
+## Data model
+
+`Link` belongs to a `User` (nullable - anonymous creation is still allowed)
+and has many `Click`. A click row is written on every redirect: truncated
+IP, referrer header, user agent, timestamp. `clicks.created_at` is indexed -
+the stats endpoint does a 30-day range scan grouped by day on every request,
+so that index isn't optional.
+
+## Running it
 
 ```bash
 composer install
@@ -32,22 +68,30 @@ cp .env.example .env
 php artisan key:generate
 touch database/database.sqlite
 php artisan migrate
-php artisan serve            # http://127.0.0.1:8000
+php artisan serve
 ```
 
-Uses SQLite by default, so there's no database to set up.
+SQLite, no external database needed. To exercise the retention job locally:
 
-## Deploy to Railway
+```bash
+php artisan clicks:prune --days=90
+```
 
-1. Push this folder to its own GitHub repo.
-2. On Railway: New Project → Deploy from GitHub repo.
-3. Set environment variables:
-   - `APP_KEY` — run `php artisan key:generate --show` locally and paste the value
-   - `APP_ENV=production`, `APP_DEBUG=false`
-4. Railway builds with the included `nixpacks.toml`.
+## Tests
 
-SQLite works for a demo, but Railway's filesystem is ephemeral so data resets on
-redeploy. For persistent stats, add a Railway Postgres and set `DB_CONNECTION=pgsql`
-plus the `DB_*` vars Railway gives you.
+```bash
+php artisan test
+```
 
-After deploy, point the frontend's `VITE_API_URL` at your Railway URL.
+Covers the auth boundary added above: guests get 401 on the list/delete
+routes, a token holder only sees and can delete their own links (403 on
+someone else's), and the redirect route keeps working with no auth at all.
+
+## Deploying
+
+Built for Railway (`nixpacks.toml` included) with SQLite as the default
+store. Fine for a demo; Railway's disk is ephemeral, so add a Postgres
+add-on and set `DB_CONNECTION=pgsql` if the stats need to survive a
+redeploy. Required env vars: `APP_KEY`, `APP_ENV=production`,
+`APP_DEBUG=false`. Point the frontend's `VITE_API_URL` at whatever
+Railway gives the deployed service.

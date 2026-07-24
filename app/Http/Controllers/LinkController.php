@@ -5,13 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Link;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class LinkController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $links = Link::query()
+        $links = $request->user()->links()
             ->withCount('clicks')
             ->latest()
             ->get()
@@ -30,6 +31,7 @@ class LinkController extends Controller
         $link = Link::create([
             'slug' => $data['slug'] ?? $this->uniqueSlug(),
             'original_url' => $data['url'],
+            'user_id' => $request->user()?->id,
         ]);
 
         $link->loadCount('clicks');
@@ -79,9 +81,13 @@ class LinkController extends Controller
         ]);
     }
 
-    public function destroy(string $slug)
+    public function destroy(Request $request, string $slug)
     {
-        Link::where('slug', $slug)->firstOrFail()->delete();
+        $link = Link::where('slug', $slug)->firstOrFail();
+
+        Gate::forUser($request->user())->authorize('delete', $link);
+
+        $link->delete();
 
         return response()->json(['deleted' => true]);
     }
