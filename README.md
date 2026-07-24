@@ -89,9 +89,23 @@ someone else's), and the redirect route keeps working with no auth at all.
 
 ## Deploying
 
-Built for Railway (`nixpacks.toml` included) with SQLite as the default
-store. Fine for a demo; Railway's disk is ephemeral, so add a Postgres
-add-on and set `DB_CONNECTION=pgsql` if the stats need to survive a
-redeploy. Required env vars: `APP_KEY`, `APP_ENV=production`,
-`APP_DEBUG=false`. Point the frontend's `VITE_API_URL` at whatever
-Railway gives the deployed service.
+The included `Dockerfile` builds a PHP 8.3 image with `pdo_pgsql` and runs
+migrations on boot, so any host that accepts a Dockerfile will do.
+
+Click data is the whole point of this app, so it needs a database that
+survives a redeploy: a container filesystem does not, and neither does
+SQLite sitting on one. Point `DB_URL` at managed Postgres and set
+`DB_CONNECTION=pgsql`.
+
+Environment variables to set on the host:
+
+| Variable | Value |
+|---|---|
+| `APP_KEY` | output of `php artisan key:generate --show` |
+| `APP_ENV` | `production` |
+| `APP_DEBUG` | `false` |
+| `DB_CONNECTION` | `pgsql` |
+| `DB_URL` | the provider's connection string, `sslmode=require` included |
+
+Then set the frontend's `VITE_API_URL` to the deployed URL, with no
+trailing slash.

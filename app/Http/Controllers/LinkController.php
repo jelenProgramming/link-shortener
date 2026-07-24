@@ -43,12 +43,22 @@ class LinkController extends Controller
     {
         $link = Link::where('slug', $slug)->withCount('clicks')->firstOrFail();
 
+        // sqlite locally, postgres in production: the two spell "truncate a
+        // timestamp to a day" differently
+        $day = DB::connection()->getDriverName() === 'pgsql'
+            ? 'created_at::date'
+            : 'date(created_at)';
+
         $byDay = $link->clicks()
-            ->select(DB::raw('date(created_at) as day'), DB::raw('count(*) as count'))
+            ->select(DB::raw("{$day} as day"), DB::raw('count(*) as count'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('day')
             ->orderBy('day')
-            ->get();
+            ->get()
+            ->map(fn ($row) => [
+                'day' => (string) $row->day,
+                'count' => (int) $row->count,
+            ]);
 
         $topReferers = $link->clicks()
             ->select('referer', DB::raw('count(*) as count'))
