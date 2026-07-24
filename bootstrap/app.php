@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Application;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
@@ -16,6 +17,14 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // There is no login route to send a guest to: this is a token API with
+        // no session. Without this, an unauthenticated request that does not
+        // ask for JSON blows up with "Route [login] not defined" instead of
+        // answering 401.
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            return response()->json(['message' => $e->getMessage()], 401);
+        });
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
