@@ -1,11 +1,9 @@
 FROM php:8.3-cli
 
-# pdo_pgsql for the managed Postgres in production, pdo_sqlite so the test
-# suite and a local checkout still run without a database server
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git unzip libpq-dev libzip-dev \
-    && docker-php-ext-install pdo_pgsql pdo_sqlite bcmath \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# reliable extension installer: pulls all system deps automatically
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN chmod +x /usr/local/bin/install-php-extensions \
+    && install-php-extensions pdo_sqlite pdo_pgsql mbstring zip
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -13,10 +11,14 @@ WORKDIR /app
 COPY . .
 
 RUN composer install --no-dev --optimize-autoloader --no-interaction \
-    && mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data storage/logs bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    && cp -n .env.example .env \
+    && touch database/database.sqlite \
+    && mkdir -p storage/framework/views storage/framework/cache/data storage/framework/sessions bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache \
+    && php artisan key:generate --force
 
 ENV APP_ENV=production
 ENV APP_DEBUG=false
 
-CMD ["sh", "-c", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
+EXPOSE 8080
+CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
