@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Laravel builds the AuthenticationException with a redirect target,
+        // and resolving route('login') is what actually blew up: there is no
+        // such route in a token API. Returning null keeps it a plain 401.
+        $middleware->redirectGuestsTo(fn () => null);
+
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
