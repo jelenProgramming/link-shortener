@@ -1,4 +1,5 @@
-FROM php:8.3-cli
+# 8.4: the locked symfony 8 components require php >= 8.4.1
+FROM php:8.4-cli
 
 # reliable extension installer: pulls all system deps automatically
 ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
