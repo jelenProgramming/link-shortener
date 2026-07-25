@@ -15,7 +15,7 @@ COPY . .
 # APP_DEBUG=true, which hands stack traces to anyone who triggers an error.
 RUN composer install --no-dev --optimize-autoloader --no-interaction \
     && cp -n .env.example .env \
-    && sed -i 's/^APP_ENV=.*/APP_ENV=production/; s/^APP_DEBUG=.*/APP_DEBUG=false/' .env \
+    && sed -i 's/^APP_ENV=.*/APP_ENV=production/; s/^APP_DEBUG=.*/APP_DEBUG=false/; s/^LOG_CHANNEL=.*/LOG_CHANNEL=stderr/' .env \
     && touch database/database.sqlite \
     && mkdir -p storage/framework/views storage/framework/cache/data storage/framework/sessions bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache \
@@ -25,4 +25,4 @@ ENV APP_ENV=production
 ENV APP_DEBUG=false
 
 EXPOSE 8080
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
+CMD php artisan migrate --force && php -S 0.0.0.0:${PORT:-8080} -t public router.php

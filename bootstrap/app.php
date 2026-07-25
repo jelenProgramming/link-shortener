@@ -19,7 +19,17 @@ return Application::configure(basePath: dirname(__DIR__))
         // such route in a token API. Returning null keeps it a plain 401.
         $middleware->redirectGuestsTo(fn () => null);
 
-        //
+        // api-only app: the web routes are just a slug redirect and a json root,
+        // so strip the session and csrf middleware. leaving PreventRequestForgery
+        // (Laravel 13's csrf middleware) while StartSession is gone makes it throw
+        // "Session store not set" when it tries to set the XSRF cookie on every GET.
+        $middleware->web(remove: [
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Illuminate\Cookie\Middleware\EncryptCookies::class,
+            \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // There is no login route to send a guest to: this is a token API with
